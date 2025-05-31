@@ -4,15 +4,11 @@ import { asyncHandler } from "../middleware/errorHandler.js";
 import fs from "fs";
 import path from "path";
 
-// @desc    Get all students with pagination and filtering
-// @route   GET /api/students
-// @access  Private
 export const getStudents = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  // Build filter object
   const filter = { isActive: true };
 
   if (req.query.department) {
@@ -52,9 +48,6 @@ export const getStudents = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get single student by ID
-// @route   GET /api/students/:id
-// @access  Private
 export const getStudent = asyncHandler(async (req, res) => {
   const student = await Student.findById(req.params.id).populate(
     "enrolledCourses",
@@ -76,9 +69,6 @@ export const getStudent = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Create new student
-// @route   POST /api/students
-// @access  Private
 export const createStudent = asyncHandler(async (req, res) => {
   const studentData = { ...req.body };
 
@@ -104,9 +94,6 @@ export const createStudent = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Update student
-// @route   PUT /api/students/:id
-// @access  Private
 export const updateStudent = asyncHandler(async (req, res) => {
   let student = await Student.findById(req.params.id);
 
@@ -150,9 +137,6 @@ export const updateStudent = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Delete student (soft delete)
-// @route   DELETE /api/students/:id
-// @access  Private
 export const deleteStudent = asyncHandler(async (req, res) => {
   const student = await Student.findById(req.params.id);
 
@@ -163,7 +147,6 @@ export const deleteStudent = asyncHandler(async (req, res) => {
     });
   }
 
-  // Soft delete - set isActive to false
   student.isActive = false;
   await student.save();
 
@@ -179,9 +162,6 @@ export const deleteStudent = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Enroll student in a course
-// @route   POST /api/students/:id/enroll/:courseId
-// @access  Private
 export const enrollStudentInCourse = asyncHandler(async (req, res) => {
   const { id: studentId, courseId } = req.params;
 
@@ -237,9 +217,6 @@ export const enrollStudentInCourse = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Unenroll student from a course
-// @route   DELETE /api/students/:id/unenroll/:courseId
-// @access  Private
 export const unenrollStudentFromCourse = asyncHandler(async (req, res) => {
   const { id: studentId, courseId } = req.params;
 
@@ -287,9 +264,6 @@ export const unenrollStudentFromCourse = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get students by department
-// @route   GET /api/students/department/:department
-// @access  Private
 export const getStudentsByDepartment = asyncHandler(async (req, res) => {
   const { department } = req.params;
 

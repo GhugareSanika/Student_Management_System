@@ -23,10 +23,8 @@ import {
 
 const router = express.Router();
 
-// Apply authentication to all routes
 router.use(authenticateToken);
 
-// Student CRUD routes
 router
   .route("/")
   .get(validateStudentQuery, getStudents)

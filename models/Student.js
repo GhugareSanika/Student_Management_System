@@ -113,7 +113,6 @@ studentSchema.methods.enrollInCourse = function (courseId) {
   return this.save();
 };
 
-// Method to unenroll from a course
 studentSchema.methods.unenrollFromCourse = function (courseId) {
   this.enrolledCourses = this.enrolledCourses.filter(
     (course) => course.toString() !== courseId.toString()
@@ -121,7 +120,6 @@ studentSchema.methods.unenrollFromCourse = function (courseId) {
   return this.save();
 };
 
-// Static method to find students by department
 studentSchema.statics.findByDepartment = function (department) {
   return this.find({ department, isActive: true }).populate("enrolledCourses");
 };
