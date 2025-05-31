@@ -1,19 +1,34 @@
+import winston from "winston";
+
+const logger = winston.createLogger({
+  level: "error",
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({ filename: "logs/error.log" }),
+    new winston.transports.Console(),
+  ],
+});
+
 export const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
-  console.error("Error:", err);
+  // Log error
+  logger.error(err);
 
   // Mongoose bad ObjectId
   if (err.name === "CastError") {
-    const message = "Invalid ID format";
-    error = { message, statusCode: 400 };
+    const message = "Resource not found";
+    error = { message, statusCode: 404 };
   }
 
   // Mongoose duplicate key
   if (err.code === 11000) {
-    const field = Object.keys(err.keyValue)[0];
-    const message = `${field} already exists`;
+    const message = "Duplicate field value entered";
     error = { message, statusCode: 400 };
   }
 
@@ -37,8 +52,12 @@ export const errorHandler = (err, req, res, next) => {
   }
 
   res.status(error.statusCode || 500).json({
-    status: "error",
+    success: false,
     message: error.message || "Server Error",
     ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
   });
+};
+
+export const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
 };

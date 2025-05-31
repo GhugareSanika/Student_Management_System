@@ -3,6 +3,8 @@ import {
   register,
   login,
   getProfile,
+  updateProfile,
+  changePassword,
   logout,
 } from "../controllers/authController.js";
 import { authenticateToken } from "../middleware/auth.js";
@@ -15,7 +17,11 @@ router.post("/register", validateRegister, register);
 router.post("/login", validateLogin, login);
 
 // Protected routes
-router.get("/profile", authenticateToken, getProfile);
-router.post("/logout", authenticateToken, logout);
+router.use(authenticateToken); // Apply authentication to all routes below
+
+router.get("/profile", getProfile);
+router.put("/profile", updateProfile);
+router.put("/change-password", changePassword);
+router.post("/logout", logout);
 
 export default router;

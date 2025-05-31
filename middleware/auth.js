@@ -8,8 +8,8 @@ export const authenticateToken = async (req, res, next) => {
 
     if (!token) {
       return res.status(401).json({
-        status: "error",
-        message: "Access token is required",
+        success: false,
+        message: "Access token required",
       });
     }
 
@@ -18,7 +18,7 @@ export const authenticateToken = async (req, res, next) => {
 
     if (!user || !user.isActive) {
       return res.status(401).json({
-        status: "error",
+        success: false,
         message: "Invalid token or user not found",
       });
     }
@@ -28,20 +28,21 @@ export const authenticateToken = async (req, res, next) => {
   } catch (error) {
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({
-        status: "error",
+        success: false,
         message: "Invalid token",
       });
     }
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
-        status: "error",
+        success: false,
         message: "Token expired",
       });
     }
 
     return res.status(500).json({
-      status: "error",
+      success: false,
       message: "Authentication error",
+      error: error.message,
     });
   }
 };
@@ -50,7 +51,7 @@ export const authorizeRoles = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
-        status: "error",
+        success: false,
         message: "Access denied. Insufficient permissions.",
       });
     }

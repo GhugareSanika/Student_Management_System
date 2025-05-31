@@ -22,10 +22,15 @@ const courseSchema = new mongoose.Schema(
       min: [1, "Credits must be at least 1"],
       max: [6, "Credits cannot exceed 6"],
     },
-    instructor: {
+    courseCode: {
       type: String,
-      required: [true, "Instructor name is required"],
-      trim: true,
+      required: [true, "Course code is required"],
+      unique: true,
+      uppercase: true,
+      match: [
+        /^[A-Z]{2,4}\d{3,4}$/,
+        "Course code must be in format like CS101 or MATH1001",
+      ],
     },
     department: {
       type: String,
@@ -33,25 +38,82 @@ const courseSchema = new mongoose.Schema(
       enum: [
         "IT",
         "Computer Science",
-        "Engineering",
-        "Business",
-        "Arts",
-        "Science",
+        "Electronics",
+        "Mechanical",
+        "Civil",
+        "Chemical",
+        "Electrical",
       ],
+      trim: true,
+    },
+    instructor: {
+      name: {
+        type: String,
+        required: [true, "Instructor name is required"],
+        trim: true,
+      },
+      email: {
+        type: String,
+        required: [true, "Instructor email is required"],
+        lowercase: true,
+        match: [
+          /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+          "Please enter a valid email",
+        ],
+      },
     },
     duration: {
       type: String,
       required: [true, "Course duration is required"],
-      enum: ["1 month", "2 months", "3 months", "6 months", "1 year"],
+      enum: [
+        "1 month",
+        "2 months",
+        "3 months",
+        "4 months",
+        "6 months",
+        "1 year",
+      ],
     },
-    isActive: {
-      type: Boolean,
-      default: true,
+    difficulty: {
+      type: String,
+      enum: ["Beginner", "Intermediate", "Advanced"],
+      default: "Beginner",
+    },
+    prerequisites: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Course",
+      },
+    ],
+    maxStudents: {
+      type: Number,
+      default: 50,
+      min: [1, "Maximum students must be at least 1"],
+      max: [200, "Maximum students cannot exceed 200"],
     },
     enrolledStudents: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Student",
+      },
+    ],
+    startDate: {
+      type: Date,
+      required: [true, "Start date is required"],
+    },
+    endDate: {
+      type: Date,
+      required: [true, "End date is required"],
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    syllabus: [
+      {
+        week: Number,
+        topic: String,
+        description: String,
       },
     ],
   },
@@ -63,15 +125,67 @@ const courseSchema = new mongoose.Schema(
 );
 
 // Virtual for enrolled students count
-courseSchema.virtual("enrollmentCount").get(function () {
+courseSchema.virtual("enrolledCount").get(function () {
   return this.enrolledStudents.length;
 });
 
-// Index for better search performance
+// Virtual for available spots
+courseSchema.virtual("availableSpots").get(function () {
+  return this.maxStudents - this.enrolledStudents.length;
+});
+
+// Virtual for course status
+courseSchema.virtual("status").get(function () {
+  const now = new Date();
+  if (now < this.startDate) return "Upcoming";
+  if (now > this.endDate) return "Completed";
+  return "Ongoing";
+});
+
+// Index for better query performance
 courseSchema.index({ title: "text", description: "text" });
 courseSchema.index({ department: 1 });
-courseSchema.index({ credits: 1 });
+courseSchema.index({ courseCode: 1 });
+courseSchema.index({ startDate: 1 });
 
-const Course = mongoose.model("Course", courseSchema);
+// Pre-save validation
+courseSchema.pre("save", function (next) {
+  if (this.endDate <= this.startDate) {
+    throw new Error("End date must be after start date");
+  }
+  next();
+});
 
-export default Course;
+// Method to enroll a student
+courseSchema.methods.enrollStudent = function (studentId) {
+  if (this.enrolledStudents.length >= this.maxStudents) {
+    throw new Error("Course is full");
+  }
+  if (!this.enrolledStudents.includes(studentId)) {
+    this.enrolledStudents.push(studentId);
+  }
+  return this.save();
+};
+
+// Method to unenroll a student
+courseSchema.methods.unenrollStudent = function (studentId) {
+  this.enrolledStudents = this.enrolledStudents.filter(
+    (student) => student.toString() !== studentId.toString()
+  );
+  return this.save();
+};
+
+// Static method to find courses by department
+courseSchema.statics.findByDepartment = function (department) {
+  return this.find({ department, isActive: true });
+};
+
+// Static method to search courses
+courseSchema.statics.searchCourses = function (query) {
+  return this.find({
+    $text: { $search: query },
+    isActive: true,
+  }).sort({ score: { $meta: "textScore" } });
+};
+
+export default mongoose.model("Course", courseSchema);

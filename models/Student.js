@@ -21,6 +21,7 @@ const studentSchema = new mongoose.Schema(
     },
     age: {
       type: Number,
+      required: [true, "Age is required"],
       min: [16, "Age must be at least 16"],
       max: [100, "Age cannot exceed 100"],
     },
@@ -30,10 +31,11 @@ const studentSchema = new mongoose.Schema(
       enum: [
         "IT",
         "Computer Science",
-        "Engineering",
-        "Business",
-        "Arts",
-        "Science",
+        "Electronics",
+        "Mechanical",
+        "Civil",
+        "Chemical",
+        "Electrical",
       ],
       trim: true,
     },
@@ -51,6 +53,20 @@ const studentSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    phone: {
+      type: String,
+      match: [/^\d{10}$/, "Please enter a valid 10-digit phone number"],
+    },
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      zipCode: String,
+      country: {
+        type: String,
+        default: "India",
+      },
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -63,30 +79,51 @@ const studentSchema = new mongoose.Schema(
   }
 );
 
-// Virtual for student's full info
-studentSchema.virtual("studentInfo").get(function () {
-  return {
-    id: this._id,
-    name: this.name,
-    email: this.email,
-    department: this.department,
-    coursesCount: this.enrolledCourses.length,
-  };
+// Virtual for student's full profile URL
+studentSchema.virtual("profileUrl").get(function () {
+  return this.profilePicture
+    ? `/uploads/students/${this.profilePicture}`
+    : null;
 });
 
 // Index for better query performance
 studentSchema.index({ email: 1 });
 studentSchema.index({ department: 1 });
-studentSchema.index({ name: "text", email: "text" });
+studentSchema.index({ admissionDate: -1 });
 
-// Pre-save middleware
-studentSchema.pre("save", function (next) {
+// Pre-save middleware to ensure email uniqueness
+studentSchema.pre("save", async function (next) {
   if (this.isModified("email")) {
-    this.email = this.email.toLowerCase();
+    const existingStudent = await this.constructor.findOne({
+      email: this.email,
+      _id: { $ne: this._id },
+    });
+    if (existingStudent) {
+      throw new Error("Email already exists");
+    }
   }
   next();
 });
 
-const Student = mongoose.model("Student", studentSchema);
+// Method to enroll in a course
+studentSchema.methods.enrollInCourse = function (courseId) {
+  if (!this.enrolledCourses.includes(courseId)) {
+    this.enrolledCourses.push(courseId);
+  }
+  return this.save();
+};
 
-export default Student;
+// Method to unenroll from a course
+studentSchema.methods.unenrollFromCourse = function (courseId) {
+  this.enrolledCourses = this.enrolledCourses.filter(
+    (course) => course.toString() !== courseId.toString()
+  );
+  return this.save();
+};
+
+// Static method to find students by department
+studentSchema.statics.findByDepartment = function (department) {
+  return this.find({ department, isActive: true }).populate("enrolledCourses");
+};
+
+export default mongoose.model("Student", studentSchema);

@@ -1,17 +1,19 @@
 import express from "express";
 import {
-  getAllCourses,
-  getCourseById,
+  getCourses,
+  getCourse,
   createCourse,
   updateCourse,
   deleteCourse,
+  getCoursesByDepartment,
+  searchCourses,
   getCourseStats,
 } from "../controllers/courseController.js";
 import { authenticateToken } from "../middleware/auth.js";
 import {
   validateCourse,
   validateObjectId,
-  validatePagination,
+  validateCourseQuery,
 } from "../middleware/validation.js";
 
 const router = express.Router();
@@ -19,12 +21,25 @@ const router = express.Router();
 // Apply authentication to all routes
 router.use(authenticateToken);
 
+// Search route (must be before /:id route)
+router.get("/search", searchCourses);
+
+// Department-specific routes
+router.get("/department/:department", getCoursesByDepartment);
+
 // Course CRUD routes
-router.get("/", validatePagination, getAllCourses);
-router.get("/stats", getCourseStats);
-router.get("/:id", validateObjectId, getCourseById);
-router.post("/", validateCourse, createCourse);
-router.put("/:id", validateObjectId, updateCourse);
-router.delete("/:id", validateObjectId, deleteCourse);
+router
+  .route("/")
+  .get(validateCourseQuery, getCourses)
+  .post(validateCourse, createCourse);
+
+router
+  .route("/:id")
+  .get(validateObjectId, getCourse)
+  .put(validateObjectId, updateCourse)
+  .delete(validateObjectId, deleteCourse);
+
+// Course statistics
+router.get("/:id/stats", validateObjectId, getCourseStats);
 
 export default router;

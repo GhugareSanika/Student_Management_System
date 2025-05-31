@@ -1,371 +1,305 @@
 import Student from "../models/Student.js";
 import Course from "../models/Course.js";
+import { asyncHandler } from "../middleware/errorHandler.js";
+import fs from "fs";
+import path from "path";
 
-// Get all students with pagination and filtering
-export const getAllStudents = async (req, res) => {
-  try {
-    const {
-      page = 1,
-      limit = 10,
-      department,
-      search,
-      sortBy = "createdAt",
-      sortOrder = "desc",
-    } = req.query;
+// @desc    Get all students with pagination and filtering
+// @route   GET /api/students
+// @access  Private
+export const getStudents = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
 
-    // Build filter object
-    const filter = { isActive: true };
+  // Build filter object
+  const filter = { isActive: true };
 
-    if (department) {
-      filter.department = department;
-    }
+  if (req.query.department) {
+    filter.department = req.query.department;
+  }
 
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-      ];
-    }
+  if (req.query.search) {
+    filter.$or = [
+      { name: { $regex: req.query.search, $options: "i" } },
+      { email: { $regex: req.query.search, $options: "i" } },
+    ];
+  }
 
-    // Calculate pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const sortOptions = {};
-    sortOptions[sortBy] = sortOrder === "desc" ? -1 : 1;
+  // Get students with pagination
+  const students = await Student.find(filter)
+    .populate("enrolledCourses", "title courseCode credits department")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
 
-    // Get students with populated courses
-    const students = await Student.find(filter)
-      .populate("enrolledCourses", "title credits department")
-      .sort(sortOptions)
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
+  // Get total count for pagination
+  const total = await Student.countDocuments(filter);
+  const totalPages = Math.ceil(total / limit);
 
-    // Get total count for pagination
-    const totalStudents = await Student.countDocuments(filter);
-    const totalPages = Math.ceil(totalStudents / parseInt(limit));
-
-    res.status(200).json({
-      status: "success",
-      data: {
-        students,
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages,
-          totalStudents,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1,
-        },
+  res.status(200).json({
+    success: true,
+    data: {
+      students,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalStudents: total,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
       },
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: "Failed to fetch students",
-      error: error.message,
+    },
+  });
+});
+
+// @desc    Get single student by ID
+// @route   GET /api/students/:id
+// @access  Private
+export const getStudent = asyncHandler(async (req, res) => {
+  const student = await Student.findById(req.params.id).populate(
+    "enrolledCourses",
+    "title courseCode credits department instructor startDate endDate"
+  );
+
+  if (!student || !student.isActive) {
+    return res.status(404).json({
+      success: false,
+      message: "Student not found",
     });
   }
-};
 
-// Get student by ID
-export const getStudentById = async (req, res) => {
-  try {
-    const { id } = req.params;
+  res.status(200).json({
+    success: true,
+    data: {
+      student,
+    },
+  });
+});
 
-    const student = await Student.findById(id)
-      .populate(
-        "enrolledCourses",
-        "title description credits instructor department duration"
-      )
-      .lean();
+// @desc    Create new student
+// @route   POST /api/students
+// @access  Private
+export const createStudent = asyncHandler(async (req, res) => {
+  const studentData = { ...req.body };
 
-    if (!student || !student.isActive) {
-      return res.status(404).json({
-        status: "error",
-        message: "Student not found",
-      });
-    }
+  // Add profile picture if uploaded
+  if (req.file) {
+    studentData.profilePicture = req.file.filename;
+  }
 
-    res.status(200).json({
-      status: "success",
-      data: {
-        student,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: "Failed to fetch student",
-      error: error.message,
+  const student = await Student.create(studentData);
+
+  // Populate the created student
+  await student.populate(
+    "enrolledCourses",
+    "title courseCode credits department"
+  );
+
+  res.status(201).json({
+    success: true,
+    message: "Student created successfully",
+    data: {
+      student,
+    },
+  });
+});
+
+// @desc    Update student
+// @route   PUT /api/students/:id
+// @access  Private
+export const updateStudent = asyncHandler(async (req, res) => {
+  let student = await Student.findById(req.params.id);
+
+  if (!student || !student.isActive) {
+    return res.status(404).json({
+      success: false,
+      message: "Student not found",
     });
   }
-};
 
-// Create new student
-export const createStudent = async (req, res) => {
-  try {
-    const { name, email, age, department, enrolledCourses } = req.body;
+  const updateData = { ...req.body };
 
-    // Check if email already exists
-    const existingStudent = await Student.findOne({ email });
-    if (existingStudent) {
-      return res.status(400).json({
-        status: "error",
-        message: "Student with this email already exists",
-      });
-    }
-
-    // Validate enrolled courses if provided
-    if (enrolledCourses && enrolledCourses.length > 0) {
-      const validCourses = await Course.find({
-        _id: { $in: enrolledCourses },
-        isActive: true,
-      });
-
-      if (validCourses.length !== enrolledCourses.length) {
-        return res.status(400).json({
-          status: "error",
-          message: "One or more courses are invalid",
-        });
+  // Handle profile picture update
+  if (req.file) {
+    // Delete old profile picture if exists
+    if (student.profilePicture) {
+      const oldImagePath = path.join(
+        process.cwd(),
+        "uploads",
+        "students",
+        student.profilePicture
+      );
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
       }
     }
+    updateData.profilePicture = req.file.filename;
+  }
 
-    const student = new Student({
-      name,
-      email,
-      age,
-      department,
-      enrolledCourses: enrolledCourses || [],
-    });
+  student = await Student.findByIdAndUpdate(req.params.id, updateData, {
+    new: true,
+    runValidators: true,
+  }).populate("enrolledCourses", "title courseCode credits department");
 
-    await student.save();
+  res.status(200).json({
+    success: true,
+    message: "Student updated successfully",
+    data: {
+      student,
+    },
+  });
+});
 
-    // Update course enrollment
-    if (enrolledCourses && enrolledCourses.length > 0) {
-      await Course.updateMany(
-        { _id: { $in: enrolledCourses } },
-        { $addToSet: { enrolledStudents: student._id } }
-      );
-    }
+// @desc    Delete student (soft delete)
+// @route   DELETE /api/students/:id
+// @access  Private
+export const deleteStudent = asyncHandler(async (req, res) => {
+  const student = await Student.findById(req.params.id);
 
-    // Populate courses before sending response
-    await student.populate("enrolledCourses", "title credits department");
-
-    res.status(201).json({
-      status: "success",
-      message: "Student created successfully",
-      data: {
-        student,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: "Failed to create student",
-      error: error.message,
+  if (!student || !student.isActive) {
+    return res.status(404).json({
+      success: false,
+      message: "Student not found",
     });
   }
-};
 
-// Update student
-export const updateStudent = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
+  // Soft delete - set isActive to false
+  student.isActive = false;
+  await student.save();
 
-    // Remove fields that shouldn't be updated directly
-    delete updates.createdAt;
-    delete updates.updatedAt;
+  // Remove student from all enrolled courses
+  await Course.updateMany(
+    { enrolledStudents: student._id },
+    { $pull: { enrolledStudents: student._id } }
+  );
 
-    const student = await Student.findById(id);
-    if (!student || !student.isActive) {
-      return res.status(404).json({
-        status: "error",
-        message: "Student not found",
-      });
-    }
+  res.status(200).json({
+    success: true,
+    message: "Student deleted successfully",
+  });
+});
 
-    // Check email uniqueness if email is being updated
-    if (updates.email && updates.email !== student.email) {
-      const existingStudent = await Student.findOne({ email: updates.email });
-      if (existingStudent) {
-        return res.status(400).json({
-          status: "error",
-          message: "Email already exists",
-        });
-      }
-    }
+// @desc    Enroll student in a course
+// @route   POST /api/students/:id/enroll/:courseId
+// @access  Private
+export const enrollStudentInCourse = asyncHandler(async (req, res) => {
+  const { id: studentId, courseId } = req.params;
 
-    // Handle course enrollment updates
-    if (updates.enrolledCourses) {
-      const validCourses = await Course.find({
-        _id: { $in: updates.enrolledCourses },
-        isActive: true,
-      });
+  const student = await Student.findById(studentId);
+  const course = await Course.findById(courseId);
 
-      if (validCourses.length !== updates.enrolledCourses.length) {
-        return res.status(400).json({
-          status: "error",
-          message: "One or more courses are invalid",
-        });
-      }
-
-      // Remove student from old courses
-      await Course.updateMany(
-        { enrolledStudents: student._id },
-        { $pull: { enrolledStudents: student._id } }
-      );
-
-      // Add student to new courses
-      await Course.updateMany(
-        { _id: { $in: updates.enrolledCourses } },
-        { $addToSet: { enrolledStudents: student._id } }
-      );
-    }
-
-    const updatedStudent = await Student.findByIdAndUpdate(id, updates, {
-      new: true,
-      runValidators: true,
-    }).populate("enrolledCourses", "title credits department");
-
-    res.status(200).json({
-      status: "success",
-      message: "Student updated successfully",
-      data: {
-        student: updatedStudent,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: "Failed to update student",
-      error: error.message,
+  if (!student || !student.isActive) {
+    return res.status(404).json({
+      success: false,
+      message: "Student not found",
     });
   }
-};
 
-// Delete student (soft delete)
-export const deleteStudent = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const student = await Student.findById(id);
-    if (!student || !student.isActive) {
-      return res.status(404).json({
-        status: "error",
-        message: "Student not found",
-      });
-    }
-
-    // Remove student from all enrolled courses
-    await Course.updateMany(
-      { enrolledStudents: student._id },
-      { $pull: { enrolledStudents: student._id } }
-    );
-
-    // Soft delete the student
-    await Student.findByIdAndUpdate(id, { isActive: false });
-
-    res.status(200).json({
-      status: "success",
-      message: "Student deleted successfully",
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: "Failed to delete student",
-      error: error.message,
+  if (!course || !course.isActive) {
+    return res.status(404).json({
+      success: false,
+      message: "Course not found",
     });
   }
-};
 
-// Enroll student in a course
-export const enrollInCourse = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { courseId } = req.body;
-
-    const student = await Student.findById(id);
-    const course = await Course.findById(courseId);
-
-    if (!student || !student.isActive) {
-      return res.status(404).json({
-        status: "error",
-        message: "Student not found",
-      });
-    }
-
-    if (!course || !course.isActive) {
-      return res.status(404).json({
-        status: "error",
-        message: "Course not found",
-      });
-    }
-
-    // Check if already enrolled
-    if (student.enrolledCourses.includes(courseId)) {
-      return res.status(400).json({
-        status: "error",
-        message: "Student is already enrolled in this course",
-      });
-    }
-
-    // Add course to student and student to course
-    student.enrolledCourses.push(courseId);
-    course.enrolledStudents.push(id);
-
-    await Promise.all([student.save(), course.save()]);
-
-    res.status(200).json({
-      status: "success",
-      message: "Student enrolled in course successfully",
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: "Failed to enroll student",
-      error: error.message,
+  // Check if student is already enrolled
+  if (student.enrolledCourses.includes(courseId)) {
+    return res.status(400).json({
+      success: false,
+      message: "Student is already enrolled in this course",
     });
   }
-};
 
-// Unenroll student from a course
-export const unenrollFromCourse = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { courseId } = req.body;
-
-    const student = await Student.findById(id);
-    const course = await Course.findById(courseId);
-
-    if (!student || !student.isActive) {
-      return res.status(404).json({
-        status: "error",
-        message: "Student not found",
-      });
-    }
-
-    if (!course) {
-      return res.status(404).json({
-        status: "error",
-        message: "Course not found",
-      });
-    }
-
-    // Remove course from student and student from course
-    student.enrolledCourses.pull(courseId);
-    course.enrolledStudents.pull(id);
-
-    await Promise.all([student.save(), course.save()]);
-
-    res.status(200).json({
-      status: "success",
-      message: "Student unenrolled from course successfully",
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: "Failed to unenroll student",
-      error: error.message,
+  // Check if course is full
+  if (course.enrolledStudents.length >= course.maxStudents) {
+    return res.status(400).json({
+      success: false,
+      message: "Course is full",
     });
   }
-};
+
+  // Enroll student
+  await student.enrollInCourse(courseId);
+  await course.enrollStudent(studentId);
+
+  // Get updated student data
+  const updatedStudent = await Student.findById(studentId).populate(
+    "enrolledCourses",
+    "title courseCode credits department"
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Student enrolled in course successfully",
+    data: {
+      student: updatedStudent,
+    },
+  });
+});
+
+// @desc    Unenroll student from a course
+// @route   DELETE /api/students/:id/unenroll/:courseId
+// @access  Private
+export const unenrollStudentFromCourse = asyncHandler(async (req, res) => {
+  const { id: studentId, courseId } = req.params;
+
+  const student = await Student.findById(studentId);
+  const course = await Course.findById(courseId);
+
+  if (!student || !student.isActive) {
+    return res.status(404).json({
+      success: false,
+      message: "Student not found",
+    });
+  }
+
+  if (!course) {
+    return res.status(404).json({
+      success: false,
+      message: "Course not found",
+    });
+  }
+
+  // Check if student is enrolled
+  if (!student.enrolledCourses.includes(courseId)) {
+    return res.status(400).json({
+      success: false,
+      message: "Student is not enrolled in this course",
+    });
+  }
+
+  // Unenroll student
+  await student.unenrollFromCourse(courseId);
+  await course.unenrollStudent(studentId);
+
+  // Get updated student data
+  const updatedStudent = await Student.findById(studentId).populate(
+    "enrolledCourses",
+    "title courseCode credits department"
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Student unenrolled from course successfully",
+    data: {
+      student: updatedStudent,
+    },
+  });
+});
+
+// @desc    Get students by department
+// @route   GET /api/students/department/:department
+// @access  Private
+export const getStudentsByDepartment = asyncHandler(async (req, res) => {
+  const { department } = req.params;
+
+  const students = await Student.findByDepartment(department);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      students,
+      count: students.length,
+    },
+  });
+});
