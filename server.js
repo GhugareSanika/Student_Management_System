@@ -7,25 +7,19 @@ import morgan from "morgan";
 import winston from "winston";
 import path from "path";
 import { fileURLToPath } from "url";
-
-// Import routes
 import authRoutes from "./routes/authRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 
-// Import middleware
 import { errorHandler } from "./middleware/errorHandler.js";
 
-// Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
 
-// Configure Winston Logger
 const logger = winston.createLogger({
   level: "info",
   format: winston.format.combine(
@@ -45,8 +39,8 @@ const logger = winston.createLogger({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: "Too many requests from this IP, please try again later.",
 });
 
@@ -91,10 +85,8 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Error handling middleware
 app.use(errorHandler);
 
-// 404 handler
 app.use("*", (req, res) => {
   res.status(404).json({
     success: false,
