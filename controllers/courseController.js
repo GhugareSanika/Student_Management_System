@@ -2,9 +2,6 @@ import Course from "../models/Course.js";
 import Student from "../models/Student.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 
-// @desc    Get all courses with pagination and search
-// @route   GET /api/courses
-// @access  Private
 export const getCourses = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
@@ -19,7 +16,6 @@ export const getCourses = asyncHandler(async (req, res) => {
 
   let query = Course.find(filter);
 
-  // Search functionality
   if (req.query.title) {
     query = Course.find({
       ...filter,
@@ -27,7 +23,6 @@ export const getCourses = asyncHandler(async (req, res) => {
     }).sort({ score: { $meta: "textScore" } });
   }
 
-  // Execute query with pagination
   const courses = await query
     .populate("enrolledStudents", "name email department")
     .populate("prerequisites", "title courseCode")
@@ -35,7 +30,6 @@ export const getCourses = asyncHandler(async (req, res) => {
     .skip(skip)
     .limit(limit);
 
-  // Get total count for pagination
   const total = await Course.countDocuments(filter);
   const totalPages = Math.ceil(total / limit);
 
@@ -54,9 +48,6 @@ export const getCourses = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get single course by ID
-// @route   GET /api/courses/:id
-// @access  Private
 export const getCourse = asyncHandler(async (req, res) => {
   const course = await Course.findById(req.params.id)
     .populate("enrolledStudents", "name email department age")
@@ -77,9 +68,6 @@ export const getCourse = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Create new course
-// @route   POST /api/courses
-// @access  Private
 export const createCourse = asyncHandler(async (req, res) => {
   // Check if course code already exists
   const existingCourse = await Course.findOne({
@@ -107,9 +95,6 @@ export const createCourse = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Update course
-// @route   PUT /api/courses/:id
-// @access  Private
 export const updateCourse = asyncHandler(async (req, res) => {
   let course = await Course.findById(req.params.id);
 
@@ -151,9 +136,6 @@ export const updateCourse = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Delete course (soft delete)
-// @route   DELETE /api/courses/:id
-// @access  Private
 export const deleteCourse = asyncHandler(async (req, res) => {
   const course = await Course.findById(req.params.id);
 
@@ -180,9 +162,6 @@ export const deleteCourse = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get courses by department
-// @route   GET /api/courses/department/:department
-// @access  Private
 export const getCoursesByDepartment = asyncHandler(async (req, res) => {
   const { department } = req.params;
 
@@ -200,9 +179,6 @@ export const getCoursesByDepartment = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Search courses
-// @route   GET /api/courses/search
-// @access  Private
 export const searchCourses = asyncHandler(async (req, res) => {
   const { q } = req.query;
 
@@ -227,9 +203,6 @@ export const searchCourses = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get course statistics
-// @route   GET /api/courses/:id/stats
-// @access  Private
 export const getCourseStats = asyncHandler(async (req, res) => {
   const course = await Course.findById(req.params.id).populate(
     "enrolledStudents",

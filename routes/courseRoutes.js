@@ -18,16 +18,12 @@ import {
 
 const router = express.Router();
 
-// Apply authentication to all routes
 router.use(authenticateToken);
 
-// Search route (must be before /:id route)
 router.get("/search", searchCourses);
 
-// Department-specific routes
 router.get("/department/:department", getCoursesByDepartment);
 
-// Course CRUD routes
 router
   .route("/")
   .get(validateCourseQuery, getCourses)

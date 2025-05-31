@@ -124,7 +124,6 @@ const courseSchema = new mongoose.Schema(
   }
 );
 
-// Virtual for enrolled students count
 courseSchema.virtual("enrolledCount").get(function () {
   return this.enrolledStudents.length;
 });
@@ -134,7 +133,6 @@ courseSchema.virtual("availableSpots").get(function () {
   return this.maxStudents - this.enrolledStudents.length;
 });
 
-// Virtual for course status
 courseSchema.virtual("status").get(function () {
   const now = new Date();
   if (now < this.startDate) return "Upcoming";
@@ -142,13 +140,11 @@ courseSchema.virtual("status").get(function () {
   return "Ongoing";
 });
 
-// Index for better query performance
 courseSchema.index({ title: "text", description: "text" });
 courseSchema.index({ department: 1 });
 courseSchema.index({ courseCode: 1 });
 courseSchema.index({ startDate: 1 });
 
-// Pre-save validation
 courseSchema.pre("save", function (next) {
   if (this.endDate <= this.startDate) {
     throw new Error("End date must be after start date");
@@ -156,7 +152,6 @@ courseSchema.pre("save", function (next) {
   next();
 });
 
-// Method to enroll a student
 courseSchema.methods.enrollStudent = function (studentId) {
   if (this.enrolledStudents.length >= this.maxStudents) {
     throw new Error("Course is full");
@@ -175,12 +170,10 @@ courseSchema.methods.unenrollStudent = function (studentId) {
   return this.save();
 };
 
-// Static method to find courses by department
 courseSchema.statics.findByDepartment = function (department) {
   return this.find({ department, isActive: true });
 };
 
-// Static method to search courses
 courseSchema.statics.searchCourses = function (query) {
   return this.find({
     $text: { $search: query },
