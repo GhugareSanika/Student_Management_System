@@ -9,9 +9,6 @@ const generateToken = (userId) => {
   });
 };
 
-// @desc    Register new admin
-// @route   POST /api/auth/register
-// @access  Public
 export const register = asyncHandler(async (req, res) => {
   const { username, email, password, role } = req.body;
 
@@ -53,9 +50,6 @@ export const register = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
 export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
@@ -101,9 +95,6 @@ export const login = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get current user profile
-// @route   GET /api/auth/profile
-// @access  Private
 export const getProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
 
@@ -115,9 +106,6 @@ export const getProfile = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Update user profile
-// @route   PUT /api/auth/profile
-// @access  Private
 export const updateProfile = asyncHandler(async (req, res) => {
   const { username, email } = req.body;
 
@@ -137,9 +125,6 @@ export const updateProfile = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Change password
-// @route   PUT /api/auth/change-password
-// @access  Private
 export const changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
@@ -165,9 +150,6 @@ export const changePassword = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Logout user (client-side token removal)
-// @route   POST /api/auth/logout
-// @access  Private
 export const logout = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,

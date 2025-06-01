@@ -19,7 +19,7 @@ const connectDB = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 sec
       socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
       family: 4,
     };
